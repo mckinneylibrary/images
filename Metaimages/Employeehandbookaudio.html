@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policy Q&A Voice Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .pulse {
+            animation: pulse-animation 1.5s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(96, 165, 250, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #3b82f6;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-2xl mx-auto p-4 md:p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl space-y-6">
+        <div class="text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">Policy Q&A Assistant</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Ask a question about the City of McKinney Employee Policies.</p>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <label for="language-select" class="font-medium">Language:</label>
+            <select id="language-select" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full sm:w-auto p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500">
+                <!-- Languages will be populated by JS -->
+            </select>
+        </div>
+
+        <div class="flex flex-col items-center justify-center space-y-6 pt-4">
+            <button id="mic-button" class="w-24 h-24 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800">
+                <svg id="mic-icon" class="w-12 h-12" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m12 0v-1.5a6 6 0 00-6-6.75 6 6 0 00-6 6.75v1.5m6 6.75v3.75m0-3.75a3 3 0 01-3-3V6.75a3 3 0 013-3h0a3 3 0 013 3v6.75a3 3 0 01-3 3z" />
+                </svg>
+            </button>
+            <div id="status-container" class="flex items-center justify-center h-6">
+                 <p id="status" class="text-lg font-medium text-gray-600 dark:text-gray-300">Tap the mic to ask a question</p>
+                 <div id="loading-spinner" class="spinner hidden"></div>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div id="query-container" class="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl min-h-[60px] hidden">
+                <h2 class="font-bold text-lg mb-2">Your Question:</h2>
+                <p id="query-text" class="text-gray-700 dark:text-gray-200"></p>
+            </div>
+            <div id="answer-container" class="p-4 bg-blue-50 dark:bg-gray-700/50 rounded-xl min-h-[100px] hidden">
+                <h2 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">Answer from Policy:</h2>
+                <p id="answer-text" class="text-gray-800 dark:text-gray-200 whitespace-pre-wrap"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- POLICY DATA ---
+        const policyText = `
+            CHAPTER 3: EMPLOYMENT
+            3.11 Nepotism: Nepotism is favoring relatives in employment. A person related to the City Manager, Mayor or any member of the City Council may not be appointed to any paid office or position. Generally, relatives may work in the same department; however, under no circumstance may relatives by blood, marriage, or civil law permanently supervise one another.
+            3.12 Personal Relationships: Personal relationships of a romantic or intimate nature between employees are discouraged. Supervisors are prohibited from engaging in personal relationships with subordinate employees.
+
+            CHAPTER 5: LEAVES
+            5.04 Sick Leave: Sick leave is paid time away from work for an employee who is unable to perform his/her job due to an illness or injury; must miss work to care for an immediate family member who is ill or injured; needs time away from work for visits to a professional healthcare provider. Regular full-time employees accrue sick leave monthly. Abuse of sick leave is grounds for disciplinary action.
+            5.05 Vacation: Regular full-time and part-time employees are eligible for vacation leave. Accrual is stair-stepped based on longevity. 0-2 years: 80 hrs; 2+ years: 120 hrs; 10+ years: 160 hrs; 20+ years: 200 hrs.
+            5.06 Holidays: Official city holidays are: 1. New Year's Day, 2. Martin Luther King, Jr., Day, 3. Memorial Day, 4. Juneteenth, 5. Independence Day, 6. Labor Day, 7. Thanksgiving Day, 8. Day After Thanksgiving Day, 9. Christmas Eve, 10. Christmas Day.
+            5.08 Bereavement Leave: Regular full-time and part-time employees are eligible for up to 3 days of paid leave per occurrence for the death of a family member.
+
+            CHAPTER 6: EMPLOYEE RELATIONS
+            6.03 Discipline and Appeal: The city uses progressive discipline (Oral Warning, Written Reprimand, Suspension, Demotion, Termination). However, the city can skip levels.
+            6.05 Grounds for Disciplinary Action: Examples include Dishonesty, Unsatisfactory Job Performance, Insubordination, Attendance issues, and Violation of City Policies.
+            6.08 Unlawful Harassment: The city prohibits harassment based on race, color, religion, sex, national origin, age, disability, etc. This includes sexual harassment.
+            6.09 Drug and Alcohol Free Workplace: The use, manufacture, sale, distribution, possession of or being under the influence of alcohol or controlled substances while on duty is prohibited. The city conducts pre-employment, post-accident, random, and reasonable suspicion drug and alcohol testing.
+            6.10 Workplace Violence and Weapons: The city has a zero-tolerance policy for workplace violence. Employees are prohibited from carrying a handgun or other firearm on city premises, but may leave it in a private locked car in a city-owned parking lot. Licensed law enforcement officers are exempt.
+            6.17 Dress Code and Uniforms: Employees are expected to present a clean, neat, and professional image. All clothing must be neat, clean, in good condition, and appropriate for the position. Inappropriate Attire includes tank tops, spaghetti straps, beach flip flops and clothing with holes or frays. Visible tattoos may not be of an offensive nature (sexual, profane or otherwise).
+
+            CHAPTER 13: SOCIAL MEDIA
+            13.04 Use of Social Media at Home: Employees engaging on personal social media platforms should not use their city e-mail account or the city’s name, logos, or speak as a representative of the city. Any person identified as an employee of the city on a publicly accessible site is expected to maintain a positive online image.
+
+            CHAPTER 14: CELL PHONE USE
+            14.01 Policy: This policy covers city-issued cell phones and personally-owned cell phones used for city business. Employees should have no expectation of privacy while using city-owned cell phones. Call records of city-owned cell phones are public record.
+        `;
+
+        // --- DOM ELEMENTS ---
+        const micButton = document.getElementById('mic-button');
+        const micIcon = document.getElementById('mic-icon');
+        const statusEl = document.getElementById('status');
+        const queryContainer = document.getElementById('query-container');
+        const queryTextEl = document.getElementById('query-text');
+        const answerContainer = document.getElementById('answer-container');
+        const answerTextEl = document.getElementById('answer-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const languageSelect = document.getElementById('language-select');
+        
+        // --- SPEECH RECOGNITION & SYNTHESIS SETUP ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const synthesis = window.speechSynthesis;
+        let recognition;
+        let isListening = false;
+        
+        const languages = {
+            'en-US': 'English (US)', 'es-ES': 'Español (España)', 'fr-FR': 'Français',
+            'de-DE': 'Deutsch', 'it-IT': 'Italiano', 'ja-JP': '日本語',
+            'ko-KR': '한국어', 'pt-BR': 'Português (Brasil)', 'ru-RU': 'Русский',
+            'zh-CN': '中文 (普通话)', 'hi-IN': 'हिन्दी', 'kn-IN': 'ಕನ್ನಡ (Kannada)'
+        };
+
+        function populateLanguages() {
+            for (const [code, name] of Object.entries(languages)) {
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = name;
+                languageSelect.appendChild(option);
+            }
+            languageSelect.value = 'en-US'; // Default language
+        }
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+
+            recognition.onstart = () => {
+                isListening = true;
+                statusEl.textContent = 'Listening...';
+                micButton.classList.add('pulse');
+                micIcon.classList.remove('text-white');
+                micIcon.classList.add('text-red-400');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = Array.from(event.results)
+                    .map(result => result[0])
+                    .map(result => result.transcript)
+                    .join('');
+
+                queryTextEl.textContent = transcript;
+                queryContainer.classList.remove('hidden');
+
+                if (event.results[0].isFinal) {
+                    processQueryWithAI(transcript);
+                }
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                micButton.classList.remove('pulse');
+                micIcon.classList.add('text-white');
+                micIcon.classList.remove('text-red-400');
+                if (statusEl.textContent === 'Listening...') {
+                   statusEl.textContent = 'Tap the mic to ask a question';
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech Recognition Error:", event.error);
+                statusEl.textContent = `Error: ${event.error}. Please try again.`;
+                if (event.error === 'not-allowed') {
+                    statusEl.textContent = 'Microphone access denied.';
+                }
+                loadingSpinner.classList.add('hidden');
+            };
+        } else {
+            statusEl.textContent = "Browser doesn't support Speech Recognition.";
+            micButton.disabled = true;
+        }
+
+        // --- EVENT LISTENERS ---
+        micButton.addEventListener('click', () => {
+            if (isListening) {
+                recognition.stop();
+            } else if (recognition) {
+                try {
+                    synthesis.cancel(); // Stop any current speech
+                    recognition.lang = languageSelect.value;
+                    recognition.start();
+                } catch (e) {
+                    console.error("Error starting recognition:", e);
+                    statusEl.textContent = "Could not start listening. Please try again.";
+                }
+            }
+        });
+
+        languageSelect.addEventListener('change', () => {
+            if (recognition) {
+                recognition.lang = languageSelect.value;
+            }
+        });
+
+        // --- CORE LOGIC WITH GEMINI API ---
+        async function processQueryWithAI(query) {
+            statusEl.textContent = 'Thinking...';
+            loadingSpinner.classList.remove('hidden');
+            micButton.disabled = true;
+
+            const selectedLanguageName = languages[languageSelect.value];
+
+            const prompt = `
+                You are a helpful assistant for employees of the City of McKinney.
+                Your task is to answer questions based ONLY on the provided text of the employee policy document.
+                The user's question is: "${query}"
+                The user wants the answer in ${selectedLanguageName}.
+
+                Here is the text from the City of McKinney Employee Personnel Policies:
+                ---
+                ${policyText}
+                ---
+
+                Please follow these steps:
+                1. Analyze the user's question to understand what they are asking for.
+                2. Search the provided policy document text for the most relevant information to answer the question.
+                3. Formulate a detailed answer based strictly on the policy text. If the user asks for a list (like holidays), list them out completely from the text. Do not just refer to a section number; provide the actual information.
+                4. Translate this detailed answer into ${selectedLanguageName}.
+                5. Return a single, valid JSON object with one key: "answer", containing the translated, detailed answer.
+
+                Example response format if the user asked about holidays in Spanish:
+                {
+                  "answer": "Los días festivos oficiales de la ciudad son: Día de Año Nuevo, Día de Martin Luther King, Jr., Día de los Caídos, Juneteenth, Día de la Independencia, Día del Trabajo, Día de Acción de Gracias, el día después de Acción de Gracias, Nochebuena y Navidad."
+                }
+
+                Provide only the JSON object in your response. Do not include any other text or markdown formatting.
+            `;
+
+            try {
+                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = ""; // API key is handled by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                let textResponse = "{}"; // Default to empty JSON
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts[0].text) {
+                    textResponse = result.candidates[0].content.parts[0].text;
+                }
+                
+                const jsonString = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                const aiResponse = JSON.parse(jsonString);
+
+                answerContainer.classList.remove('hidden');
+                answerTextEl.textContent = aiResponse.answer;
+                speak(aiResponse.answer, languageSelect.value);
+
+            } catch (error) {
+                console.error('Error processing AI query:', error);
+                const errorMessage = "I'm sorry, I encountered an error trying to answer your question. Please try again.";
+                answerContainer.classList.remove('hidden');
+                answerTextEl.textContent = errorMessage;
+                speak(errorMessage, 'en-US');
+            } finally {
+                micButton.disabled = false;
+                loadingSpinner.classList.add('hidden');
+                if (!isListening) {
+                    statusEl.textContent = 'Tap the mic to ask a question';
+                }
+            }
+        }
+
+        function speak(text, lang) {
+            if (synthesis.speaking) {
+                synthesis.cancel();
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = lang;
+            
+            const voices = synthesis.getVoices();
+            utterance.voice = voices.find(voice => voice.lang === lang) || voices.find(voice => voice.lang.startsWith(lang.split('-')[0])) || voices.find(voice => voice.default);
+
+            utterance.onstart = () => {
+                statusEl.textContent = 'Speaking...';
+                loadingSpinner.classList.add('hidden');
+            };
+
+            utterance.onend = () => {
+                if (!isListening) {
+                    statusEl.textContent = 'Tap the mic to ask a question';
+                }
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('SpeechSynthesis Error:', event);
+                statusEl.textContent = 'Error during speech synthesis.';
+            };
+
+            synthesis.speak(utterance);
+        }
+        
+        // --- INITIALIZATION ---
+        populateLanguages();
+        if (synthesis.onvoiceschanged !== undefined) {
+            synthesis.onvoiceschanged = () => {};
+        }
+    </script>
+</body>
+</html>
